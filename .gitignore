@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+
+# contracts
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/coverage/
+contracts/coverage.json
+contracts/typechain-types/
+contracts/deployments/
+contracts/.env
+.env.local
