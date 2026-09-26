@@ -33,21 +33,18 @@ bold "=== MIX TAPE OS — deploying to $NETWORK ==="
 echo
 
 # ---- 1. .env must exist and be filled in -----------------------------------
-# DEPLOYER_KEY is deliberately NOT read from .env — it's asked for interactively
-# below (hidden input, never written to disk) so your private key never sits in
-# a file or shows up in shell history.
 if [ ! -f .env ]; then
   cp .env.example .env
   red "No .env found — created one from .env.example."
-  echo "Open contracts/.env and fill in at least TREASURY and RPC_URL,"
-  echo "then run this script again. (Leave DEPLOYER_KEY blank — you'll be"
-  echo "prompted for it securely each time you deploy.)"
+  echo "Open contracts/.env and fill in DEPLOYER_KEY, TREASURY and RPC_URL,"
+  echo "then run this script again."
   exit 1
 fi
 
 # shellcheck disable=SC1091
 set -a; source .env; set +a
-unset DEPLOYER_KEY   # never trust a key that might be sitting in .env
+
+is_real_key() { [[ "${1:-}" =~ ^0x[0-9a-fA-F]{64}$ ]]; }
 
 if [[ " $REAL_NETWORKS " == *" $NETWORK "* ]]; then
   MISSING=()
@@ -61,19 +58,24 @@ if [[ " $REAL_NETWORKS " == *" $NETWORK "* ]]; then
   fi
 fi
 
-# ---- 1b. private key — typed in, hidden, held only in memory ----------------
+# ---- 1b. private key — from .env if it's really there, otherwise ask --------
+# Either way this stays local: nothing here uploads or transmits the key
+# anywhere except signing the deploy transaction itself.
 if [[ " $REAL_NETWORKS " == *" $NETWORK "* ]]; then
-  echo "Your private key is never written to disk, never logged, and never"
-  echo "saved to shell history — it's read straight into this script's memory"
-  echo "and only lives as long as this process runs."
-  read -rs -p "Paste deployer private key (0x..., input hidden): " DEPLOYER_KEY
-  echo
-  if [[ ! "$DEPLOYER_KEY" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-    red "That doesn't look like a private key (expected 0x + 64 hex chars)."
-    exit 1
+  if is_real_key "${DEPLOYER_KEY:-}"; then
+    bold "Using DEPLOYER_KEY from .env"
+  else
+    echo "DEPLOYER_KEY in .env is missing or still the placeholder."
+    echo "You can paste it here instead — hidden input, kept only in memory:"
+    read -rs -p "Paste deployer private key (0x..., input hidden): " DEPLOYER_KEY
+    echo
+    if ! is_real_key "${DEPLOYER_KEY:-}"; then
+      red "That doesn't look like a private key (expected 0x + 64 hex chars)."
+      exit 1
+    fi
+    export DEPLOYER_KEY
+    trap 'unset DEPLOYER_KEY' EXIT
   fi
-  export DEPLOYER_KEY
-  trap 'unset DEPLOYER_KEY' EXIT
   echo
 fi
 
